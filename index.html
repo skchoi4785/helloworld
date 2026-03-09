@@ -3,28 +3,288 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hello World</title>
+  <title>Todo App</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      margin: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
       min-height: 100vh;
       background: #0f0f1a;
-      font-family: sans-serif;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 48px 16px;
     }
+
+    #app {
+      width: 100%;
+      max-width: 540px;
+    }
+
     h1 {
       color: #fff;
-      font-size: 4rem;
-      letter-spacing: 0.05em;
+      font-size: 2rem;
+      margin-bottom: 24px;
     }
-    span {
-      color: #7c6aff;
+    h1 span { color: #7c6aff; }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .input-row input {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid #2e2e45;
+      background: #1a1a2e;
+      color: #fff;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .input-row input:focus { border-color: #7c6aff; }
+
+    .input-row button {
+      padding: 10px 18px;
+      border-radius: 8px;
+      border: none;
+      background: #7c6aff;
+      color: #fff;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .input-row button:hover { background: #6354d4; }
+
+    .filter-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .filter-row button {
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid #2e2e45;
+      background: transparent;
+      color: #888;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .filter-row button.active {
+      background: #7c6aff;
+      border-color: #7c6aff;
+      color: #fff;
+    }
+
+    .todo-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+
+    .todo-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: #1a1a2e;
+      border-radius: 10px;
+      border: 1px solid #2e2e45;
+      transition: opacity 0.2s;
+    }
+    .todo-item.done { opacity: 0.5; }
+
+    .todo-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #7c6aff;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .todo-text {
+      flex: 1;
+      color: #e0e0e0;
+      font-size: 0.95rem;
+      word-break: break-all;
+    }
+    .todo-item.done .todo-text { text-decoration: line-through; color: #666; }
+
+    .todo-item .edit-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid #7c6aff;
+      color: #fff;
+      font-size: 0.95rem;
+      outline: none;
+      padding: 2px 0;
+    }
+
+    .btn-icon {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 4px;
+      border-radius: 4px;
+      transition: background 0.15s;
+      color: #888;
+    }
+    .btn-icon:hover { background: #2e2e45; color: #fff; }
+    .btn-delete:hover { color: #ff6b6b; }
+
+    .footer {
+      margin-top: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #555;
+      font-size: 0.85rem;
+    }
+    .footer button {
+      background: none;
+      border: none;
+      color: #555;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .footer button:hover { color: #ff6b6b; }
+
+    .empty {
+      text-align: center;
+      color: #444;
+      padding: 40px 0;
+      font-size: 0.9rem;
     }
   </style>
 </head>
 <body>
-  <h1>Hello <span>World</span></h1>
+  <div id="app">
+    <h1>Todo <span>App</span></h1>
+
+    <div class="input-row">
+      <input
+        v-model="newText"
+        @keyup.enter="addTodo"
+        placeholder="할 일을 입력하세요"
+      />
+      <button @click="addTodo">추가</button>
+    </div>
+
+    <div class="filter-row">
+      <button
+        v-for="f in filters"
+        :key="f.value"
+        :class="{ active: filter === f.value }"
+        @click="filter = f.value"
+      >{{ f.label }}</button>
+    </div>
+
+    <ul class="todo-list">
+      <li
+        v-for="todo in filteredTodos"
+        :key="todo.id"
+        :class="['todo-item', { done: todo.done }]"
+      >
+        <input type="checkbox" v-model="todo.done" />
+        <template v-if="todo.editing">
+          <input
+            class="edit-input"
+            v-model="todo.editText"
+            @keyup.enter="saveEdit(todo)"
+            @keyup.esc="cancelEdit(todo)"
+            @blur="saveEdit(todo)"
+            :ref="el => { if(el) el.focus() }"
+          />
+        </template>
+        <span v-else class="todo-text" @dblclick="startEdit(todo)">{{ todo.text }}</span>
+        <button class="btn-icon" @click="startEdit(todo)" title="수정">✏️</button>
+        <button class="btn-icon btn-delete" @click="removeTodo(todo.id)" title="삭제">🗑️</button>
+      </li>
+      <li v-if="filteredTodos.length === 0" class="empty">할 일이 없습니다.</li>
+    </ul>
+
+    <div class="footer" v-if="todos.length > 0">
+      <span>남은 항목: {{ remaining }}개</span>
+      <button @click="clearDone">완료 항목 삭제</button>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, computed } = Vue
+
+    createApp({
+      setup() {
+        const STORAGE_KEY = 'vue3-todo'
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+
+        const todos = ref(saved.map(t => ({ ...t, editing: false, editText: '' })))
+        const newText = ref('')
+        const filter = ref('all')
+        const filters = [
+          { label: '전체', value: 'all' },
+          { label: '진행 중', value: 'active' },
+          { label: '완료', value: 'done' },
+        ]
+
+        const save = () => {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(
+            todos.value.map(({ id, text, done }) => ({ id, text, done }))
+          ))
+        }
+
+        const filteredTodos = computed(() => {
+          if (filter.value === 'active') return todos.value.filter(t => !t.done)
+          if (filter.value === 'done') return todos.value.filter(t => t.done)
+          return todos.value
+        })
+
+        const remaining = computed(() => todos.value.filter(t => !t.done).length)
+
+        function addTodo() {
+          const text = newText.value.trim()
+          if (!text) return
+          todos.value.push({ id: Date.now(), text, done: false, editing: false, editText: '' })
+          newText.value = ''
+          save()
+        }
+
+        function removeTodo(id) {
+          todos.value = todos.value.filter(t => t.id !== id)
+          save()
+        }
+
+        function startEdit(todo) {
+          todo.editText = todo.text
+          todo.editing = true
+        }
+
+        function saveEdit(todo) {
+          const text = todo.editText.trim()
+          if (text) todo.text = text
+          todo.editing = false
+          save()
+        }
+
+        function cancelEdit(todo) {
+          todo.editing = false
+        }
+
+        function clearDone() {
+          todos.value = todos.value.filter(t => !t.done)
+          save()
+        }
+
+        // auto-save on done toggle
+        const { watch } = Vue
+        watch(todos, save, { deep: true })
+
+        return { todos, newText, filter, filters, filteredTodos, remaining, addTodo, removeTodo, startEdit, saveEdit, cancelEdit, clearDone }
+      }
+    }).mount('#app')
+  </script>
 </body>
 </html>
